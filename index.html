@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Chatroom with Gemini API</title>
+    <style>
+        body {
+            color: white;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #000;
+            /* Default background in case image doesn't load */
+        }
+
+        #backgroundWrapper {
+            width: 80vw;
+            /* Use viewport width units */
+            max-width: 800px;
+            /* Maximum width remains 800px */
+            height: 80vw;
+            /* Height is set to be the same in viewport width units, approximating the width */
+            max-height: 800px;
+            /* Maximum height to match the maximum width */
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            background-image: url('./img/images.jpg');
+            /* Replace with your image path */
+            background-size: contain;
+            /* Ensures the image is fully visible without stretching */
+            background-repeat: no-repeat;
+            background-position: center bottom;
+        }
+
+        #gameContainer {
+            width: 100%;
+            /* Takes the full width of the background wrapper */
+            height: 200px;
+            /* Adjusted height to position at the bottom of the image */
+            background: rgba(0, 0, 0, 0.8);
+            /* Semi-transparent black background */
+            padding: 10px;
+            display: none;
+            box-sizing: border-box;
+            border: 1px solid #fff;
+            overflow: hidden;
+        }
+
+        #messages {
+            height: 80%;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+
+        .message {
+            margin: 5px 0;
+        }
+
+        .userMessage {
+            color: #0f0;
+        }
+
+        .botMessage {
+            color: #ff0;
+        }
+
+        #messageInput {
+            width: 100%;
+            padding: 10px;
+            box-sizing: border-box;
+            background: transparent;
+            border: none;
+            border-top: 1px solid #fff;
+            color: white;
+            font-size: 16px;
+        }
+
+        #startButton, #introButton {
+            padding: 15px 30px;
+            /* Increase padding for a better look */
+            font-size: 20px;
+            /* Adjust font size */
+            cursor: pointer;
+            /* Position it within the wrapper */
+            margin-bottom: 20px;
+            color: white;
+            /* Text color */
+            background: rgba(0, 0, 0, 0.8);
+            /* Same semi-transparent background as introBlock */
+            border: 1px solid #fff;
+            /* Same border as introBlock */
+            border-radius: 5px;
+            /* Rounded corners similar to introBlock */
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+            /* Subtle shadow for depth */
+            transition: all 0.3s ease;
+            /* Smooth transition for hover effects */
+        }
+
+        #startButton:hover,
+        #introButton:hover {
+            background: rgba(0, 0, 0, 1);
+            /* Darker background on hover */
+            box-shadow: 0px 6px 15px rgba(0, 0, 0, 0.5);
+            /* Slightly larger shadow on hover */
+            transform: scale(1.05);
+            /* Slightly enlarge on hover */
+        }
+
+        #introBlock {
+            width: 80%;
+            max-width: 600px;
+            background: rgba(0, 0, 0, 0.8);
+            /* Semi-transparent background */
+            padding: 20px;
+            box-sizing: border-box;
+            border: 1px solid #fff;
+            margin-bottom: 20px;
+            /* Space between intro block and start button */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            /* Initially hidden */
+        }
+    </style>
+</head>
+
+<body>
+    <div id="introBlock">
+        <h2>歡迎來到《心之聲》</h2>
+        <p>在《心之聲》中，每一個選擇都將帶來不同的結果和體驗。你將扮演一位對於人際關係充滿困惑的大學生，請幫助他渡過生活中的難關，選擇沒有對錯，這是一場純粹的體驗之旅，請享受在人際關係中的酸甜苦辣。</p>
+        <button id="startButton">Start Game</button>
+    </div>
+    <div id="backgroundWrapper">
+        <button id="introButton">遊戲介紹</button>
+        <div id="gameContainer">
+            <div id="messages"></div>
+            <form id="messageForm">
+                <input type="text" id="messageInput" placeholder="Type your command...">
+            </form>
+        </div>
+    </div>
+
+</body>
+<script>
+    var conversationHistory = [];
+
+    var apiKey = prompt("Please enter your API key:", "");
+    var userName = prompt("Please enter your name:", "");
+
+    if (!apiKey || !userName) {
+        alert("API key and name are required to use the chatroom.");
+        // Optionally, redirect or disable form
+    } else {
+        document.getElementById('messageForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+            var inputElement = document.getElementById('messageInput');
+            var message = inputElement.value;
+
+            addToConversationHistory('user', message);
+            displayMessage(message, 'user');
+            inputElement.disabled = true;
+            fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + apiKey, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    "contents": conversationHistory,
+                    "safetySettings": [
+                        {
+                            "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                            "threshold": "BLOCK_NONE"
+                        },
+                        {
+                            "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            "threshold": "BLOCK_NONE"
+                        },
+                    ],
+                    "generationConfig": {
+                        "stopSequences": [
+                            ""
+                        ],
+                        "temperature": 2.0,
+                        "maxOutputTokens": 2048,
+                        "topP": 0.8,
+                        "topK": 10
+                    }
+                })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    var responseText = data.candidates[0].content.parts[0].text;
+                    addToConversationHistory('model', responseText);
+                    displayMessage(responseText, 'bot');
+                    inputElement.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Error:', error)
+                    inputElement.disabled = false;
+                });
+
+            document.getElementById('messageInput').value = '';
+        });
+    }
+
+    function addToConversationHistory(role, text) {
+        conversationHistory.push({
+            "role": role,
+            "parts": [{
+                "text": text
+            }]
+        });
+    }
+
+    function displayMessage(message, sender) {
+        var messageElement = document.createElement('div');
+        var formatMessage = formatText(message);
+        messageElement.classList.add('message');
+        if (sender === 'user') {
+            messageElement.classList.add('userMessage');
+        } else {
+            messageElement.classList.add('botMessage');
+        }
+        document.getElementById('messages').appendChild(messageElement);
+        updateSceneImage(message);
+        // Function to display the text one character at a time
+        function typeText(element, text, index) {
+            if (index < text.length) {
+                let char = text[index];
+                if (char === '<') {
+                    let endIndex = text.indexOf('>', index);
+                    if (endIndex !== -1) {
+                        element.innerHTML += text.substring(index, endIndex + 1);
+                        index = endIndex + 1;
+                    }
+                } else {
+                    element.innerHTML += char;
+                    index++;
+                }
+                setTimeout(function () {
+                    typeText(element, text, index);
+                }, 75); // Adjust typing speed by changing the delay (in milliseconds)
+            } else {
+                // Scroll to bottom after the entire message is displayed
+                document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+            }
+        }
+
+        // Start typing the formatted message
+        typeText(messageElement, formatMessage, 0);
+    }
+
+    function updateSceneImage(responseText) {
+        let sceneMatch = responseText.match(/場景：(.*?)\s/); // 使用正則表達式匹配場景描述
+        if (sceneMatch && sceneMatch[1]) {
+            let scene = sceneMatch[1];
+            console.log(scene);
+            // 檢查scene是否包含"宿舍"
+            if (scene.includes("宿舍")) {
+                document.getElementById('backgroundWrapper').style.backgroundImage = "url('./img/dorm.jpeg')";
+            } else if (scene.includes("聚會")) {
+                document.getElementById('backgroundWrapper').style.backgroundImage = "url('./img/party.jpeg')";
+            } else if (scene.includes("圖書館")) {
+                document.getElementById('backgroundWrapper').style.backgroundImage = "url('./img/library.jpeg')";
+            }
+        }
+    }
+
+    function formatText(text) {
+        // Replace ** with a new line and bold tag
+        let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<br><strong>$1</strong>');
+
+        // Replace * with a new line and bullet point
+        formattedText = formattedText.replace(/\*(.*?)\s/g, '<br>$1');
+
+        return formattedText;
+    }
+
+    document.getElementById('introButton').addEventListener('click', function () {
+        document.getElementById('introBlock').style.display = 'block';
+        this.style.display = 'none'; // Hide the intro button
+        document.getElementById('startButton').style.display = 'block'; // Show the start button
+    });
+
+    document.getElementById('startButton').addEventListener('click', function () {
+        // Change background image and display settings when starting the game
+        document.getElementById('backgroundWrapper').style.backgroundImage = "url('./img/dorm.jpeg')";
+        document.getElementById('introBlock').style.display = 'none'; // Show the game container
+        document.getElementById('gameContainer').style.display = 'inline';
+        document.getElementById('introButton').style.display = 'none'; // Hide the start button
+
+        conversationHistory.push({
+            "role": 'user',
+            "parts": [{
+                "text": `腳本：
+                        """
+                        遊戲標題：簡單測試MBTI
+                        遊戲背景
+                        玩家將是一位剛入學的大學新生，試圖在新環境中找到自己的定位並建立人際關係。透過選取不同的選項，了解自己在人際關係中的行為特點。
+
+                        主要角色：
+                        ${userName}：主角是剛入學的大學新生，試圖在新環境中找到自己的定位並建立人際關係。
+                        張傑：${userName}的室友，開朗活潑。
+                        艾琳：${userName}的系上同學，這學期一起進行分組報告。
+
+                        遊戲腳本流程
+
+                        開場：
+                        （場景：宿舍）
+                        傑米邀請${userName}參加周末聚會。
+                        選擇E：接受邀請。 （選擇後進入禮拜二晚上六點上通識課劇情）
+                        選擇I：婉拒，說自己有點累。 （選擇後進入禮拜二晚上六點上通識課劇情）
+
+                        禮拜二晚上六點上通識課：
+                        （場景：課堂）
+                        教授講解概念，你第一次學習事物時，你傾向？
+                         選擇N：與天馬行空，喜歡開放性思考。（選擇後進入分組報告劇情）
+                         選擇S：依照經驗，需要明確方向。（選擇後進入分組報告劇情）
+
+                        分組報告：
+                        （場景：餐廳）
+                        傑米和${userName}抱怨自己和女朋友起衝突，你傾向？
+                         選擇T：理性判斷何方沒有合乎邏輯或公平性，錯比較大（選擇後進入放假出遊劇情）
+                         選擇F：兄弟就是挺到底（選擇後進入放假出遊劇情）
+
+                        放假出遊：
+                        （場景：周末的校園）
+                        ${userName}在這個周末沒有要回家，對於周末的安排傾向？
+                        選擇J：列好每個行程，並按照計畫進行（選擇後進入結局，根據玩家的選擇進行反思及回顧）
+                        選擇P：明天醒來再說，當天看心情決定（選擇後進入結局，根據玩家的選擇進行反思及回顧）
+
+                        結局：
+                        ENFJ：如果${userName}選擇（E和N和F和J）。你是一個熱心助人的領袖，總是關心他人的感受和需要。在未來，你將成為一個受人尊敬的協調者。
+
+                        ENTJ：如果${userName}選擇（E和N和T和J）。你是個果斷的領導者，善於制定策略和計劃。在未來，你會成為一個成功的管理者或企業家。
+                        
+                        ENFP：如果${userName}選擇（E和N和F和P）。你充滿熱情和創意，善於激發他人的潛力。在未來，你會成為一個鼓舞人心的創新者。
+                        遊戲結尾
+
+                        ENTP：如果${userName}選擇（E和N和T和P）。你是個靈活的辯論者，喜歡探索新奇的想法和挑戰現狀。在未來，你會成為一個出色的策劃者或發明家。
+
+                        ESFJ：如果${userName}選擇（E和S和F和J）。你是個忠誠的支持者，重視傳統和秩序。在未來，你會成為一個受人愛戴的守護者。
+
+                        ESTJ：如果${userName}選擇（E和S和T和J）。你是個實際的組織者，善於管理和執行。在未來，你會成為一個高效的管理者。
+
+                        ESFP：如果${userName}選擇（E和S和F和P）。你是個活潑的娛樂者，享受當下和社交活動。在未來，你會成為一個受歡迎的社交中心。
+
+                        ESTP：如果${userName}選擇（E和S和T和P）。你是個實際的行動者，喜歡冒險和解決問題。在未來，你會成為一個出色的戰術家。
+
+                        INFJ：如果${userName}選擇（I和N和F和J）。你是個洞察力強的理想主義者，致力於實現深遠的變革。在未來，你會成為一個靈感的引導者。
+                        
+                        INTJ：如果${userName}選擇（I和N和T和J）。你是個戰略的思想家，善於長期規劃和目標設定。在未來，你會成為一個傑出的戰略家或學者。
+
+                        INFP：如果${userName}選擇（I和N和F和P）。你是個理想主義的治療者，重視內心的價值和信念。在未來，你會成為一個有影響力的作家或顧問。
+
+                        INTP：如果${userName}選擇（I和N和T和P）。你是個冷靜的分析者，喜歡理論和知識的探索。在未來，你會成為一個出色的研究員或理論家。
+
+                        ISFJ：如果${userName}選擇（I和S和F和J）。你是個可靠的支持者，重視傳統和關懷他人。在未來，你會成為一個值得信賴的守護者。
+
+                        ISTJ：如果${userName}選擇（I和S和T和J）。你是個務實的實踐者，重視秩序和細節。在未來，你會成為一個有效率的管理者。
+
+                        ISFP：如果${userName}選擇（I和S和F和P）。你是個溫柔的藝術家，享受創作和自然。在未來，你會成為一個富有創意的藝術家或設計師。
+
+                        ISTP：如果${userName}選擇（I和S和T和P）。你是個獨立的解決者，喜歡動手實踐和冒險。在未來，你會成為一個出色的技術專家。
+                        遊戲最後將根據${userName}的選擇提供一段反思，強調在人際關係中開放表達自己感受的重要性，以及這種溝通方式對個人和周圍人的影響。"""
+
+                        請根據腳本中的對話，根據"""開場"""到"""聚會上的互動"""最後到"""學業合作"""進行，開始一個文字冒險遊戲，每一次的對話，都需要呈現以下格式與資訊：
+                        <場景>：目前故事的背景為何
+                        <選擇>：在每一次的對話中，你都會根據腳本給我可以選擇的動作，根據我選擇的動作繼續接下來的劇情，整體劇情會圍繞腳本發展。
+
+                        根據我的選擇進行故事就好，不要幫我做出選擇`
+            }]
+        })
+        fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=' + apiKey, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                "contents": conversationHistory,
+                "safetySettings": [
+                    {
+                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
+                        "threshold": "BLOCK_NONE"
+                    },
+                    {
+                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                        "threshold": "BLOCK_NONE"
+                    },
+                ],
+                "generationConfig": {
+                    "stopSequences": [
+                        ""
+                    ],
+                    "temperature": 2.0,
+                    "maxOutputTokens": 2048,
+                    "topP": 0.8,
+                    "topK": 10
+                }
+            })
+        })
+            .then(response => response.json())
+            .then(data => {
+                console.log(conversationHistory);
+                var responseText = data.candidates[0].content.parts[0].text;
+                addToConversationHistory('model', responseText);
+                displayMessage(responseText, 'bot');
+            })
+            .catch(error => console.error('Error:', error));
+    });
+
+
+
+</script>
+
+</html>
